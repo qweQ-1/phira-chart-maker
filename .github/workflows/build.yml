@@ -1,0 +1,129 @@
+# 打一个不签名的 IPA，供 AltStore / Sideloadly / 轻松签 用免费 Apple ID 自签安装。
+# 同时跑单元测试验证谱面格式（导出/导入必须能被 Phira 读取）。
+name: Build IPA & Test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          curl -fLsS https://github.com/yonaskolb/XcodeGen/releases/download/2.44.1/xcodegen.zip -o "$RUNNER_TEMP/xcodegen.zip"
+          unzip -oq "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project PhiraMaker.xcodeproj \
+            -scheme PhiraMaker \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -resultBundlePath build/TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tail -60
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/TestResults.xcresult
+          retention-days: 7
+
+  build:
+    name: Build IPA
+    needs: test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          curl -fLsS https://github.com/yonaskolb/XcodeGen/releases/download/2.44.1/xcodegen.zip -o "$RUNNER_TEMP/xcodegen.zip"
+          unzip -oq "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate app icon
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/iconenv"
+          "$RUNNER_TEMP/iconenv/bin/pip" install --quiet --disable-pip-version-check pillow
+          "$RUNNER_TEMP/iconenv/bin/python" Tools/make_icons.py
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Archive without signing
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project PhiraMaker.xcodeproj -scheme PhiraMaker \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/PhiraMaker.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            2>&1 | tail -40
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP=$(find build/PhiraMaker.xcarchive/Products/Applications -maxdepth 1 -name '*.app' -type d -print -quit)
+          echo "app: $APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          mkdir -p dist/Payload
+          cp -R "$APP" dist/Payload/
+          codesign --force --sign - "dist/Payload/$(basename "$APP")" || true
+          (cd dist && zip -qry PhiraMaker-unsigned.ipa Payload)
+          shasum -a 256 dist/PhiraMaker-unsigned.ipa
+          ls -lh dist/PhiraMaker-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhiraMaker-unsigned-ipa
+          path: dist/PhiraMaker-unsigned.ipa
+          retention-days: 30
+
+      - name: Publish to release
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          gh release view phira-maker-latest >/dev/null 2>&1 || \
+            gh release create phira-maker-latest --title "Phira Maker (latest)" \
+              --notes "自动构建，未签名 IPA。" --prerelease
+          gh release upload phira-maker-latest dist/PhiraMaker-unsigned.ipa --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

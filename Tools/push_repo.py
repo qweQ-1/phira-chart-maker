@@ -60,7 +60,9 @@ def main():
                 continue
             full_path = os.path.join(root, name)
             rel = os.path.relpath(full_path, local).replace(os.sep, "/")
-            if rel.startswith("."):
+            if rel in (".gitignore",) or rel.startswith(".github/"):
+                pass  # 这些要推
+            elif rel.startswith("."):
                 continue
             with open(full_path, "rb") as f:
                 content = f.read()
