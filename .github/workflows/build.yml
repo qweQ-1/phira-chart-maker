@@ -40,33 +40,16 @@ jobs:
       - name: Run tests
         run: |
           set -euo pipefail
-          # 自动挑选 runner 上可用的模拟器，避免机型名写死
-          DEVICE=$(xcrun simctl list devices available --json | python3 -c "
-          import json,sys
-          d = json.load(sys.stdin)['devices']
-          best = None
-          for runtime, devices in d.items():
-              if 'iOS' not in runtime:
-                  continue
-              for dev in devices:
-                  if not dev.get('isAvailable'):
-                      continue
-                  name = dev['name']
-                  # 优先 iPhone
-                  score = 0 if name.startswith('iPhone') else 1
-                  if best is None or score < best[0]:
-                      best = (score, name, runtime)
-          if best:
-              print(f\"platform=iOS Simulator,name={best[1]},OS={best[2].split('.')[-1]}\")
-          ")
-          echo "使用模拟器: $DEVICE"
+          chmod +x Tools/pick_simulator.sh
+          UDID=$(bash Tools/pick_simulator.sh | grep -o 'id=[A-F0-9-]*' | head -1 | cut -d= -f2)
+          echo "模拟器 UDID: $UDID"
           xcodebuild test \
             -project PhiraMaker.xcodeproj \
             -scheme PhiraMaker \
-            -destination "$DEVICE" \
+            -destination "id=$UDID" \
             -resultBundlePath build/TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tail -60
+            2>&1 | tail -80
 
       - name: Upload test results
         if: always()
