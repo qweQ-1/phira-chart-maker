@@ -9,6 +9,8 @@ struct ProjectListView: View {
     @State private var showSimpleMode = false
     @AppStorage("phira.showedModeTip") private var showedModeTip = false
     @State private var showModeTip = false
+    @State private var showImportHelp = false
+    @State private var showInboxList = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +43,11 @@ struct ProjectListView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack {
                         Button {
+                            showImportHelp = true
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        Button {
                             showingImporter = true
                         } label: {
                             Image(systemName: "square.and.arrow.down")
@@ -69,9 +76,16 @@ struct ProjectListView: View {
                 Text("第一次用？点左上角「新手」，4 步就能做出能导入 Phira 的谱面包。熟悉后可回主页用「+」进高级编辑器。")
             }
             .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: [.zip, .json, .item],
+                          // 自签名 App 里过滤太严会导致文件变灰选不了，放行全部文件
+                          allowedContentTypes: [.item],
                           allowsMultipleSelection: false) { result in
                 handleImport(result)
+            }
+            .sheet(isPresented: $showImportHelp) {
+                importHelpSheet
+            }
+            .sheet(isPresented: $showInboxList) {
+                inboxSheet
             }
             .alert("导入失败", isPresented: $showingError) {
                 Button("好", role: .cancel) {}
@@ -165,30 +179,134 @@ struct ProjectListView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-
-            let data = try Data(contentsOf: url)
-
-            if url.pathExtension.lowercased() == "json" {
-                // 单独导入 RPE 谱面文件
-                let chart = try RPEFormat.decode(data)
-                var project = ChartProject()
-                project.chart = chart
-                project.info.name = chart.META.name
-                project.info.level = chart.META.level
-                project.info.charter = chart.META.charter
-                project.info.composer = chart.META.composer
-                project.info.illustrator = chart.META.illustration
-                project.info.offset = Float(chart.META.offset) / 1000.0
-                store.importProject(project)
-            } else {
-                let project = try ChartProject.importArchive(data)
-                store.importProject(project)
-            }
+            // 关键：自签名 App 直接读安全作用域 URL 常失败，先复制到临时目录
+            let (data, name) = try ImportHelper.readSecurely(from: url)
+            try importData(data, named: name)
         } catch {
             importError = error.localizedDescription
             showingError = true
+        }
+    }
+
+    private func importData(_ data: Data, named name: String) throws {
+        let ext = (name as NSString).pathExtension.lowercased()
+        if ext == "json" || ext == "pec" {
+            let chart = try RPEFormat.decode(data)
+            var project = ChartProject()
+            project.chart = chart
+            project.info.name = chart.META.name
+            project.info.level = chart.META.level
+            project.info.charter = chart.META.charter
+            project.info.composer = chart.META.composer
+            project.info.illustrator = chart.META.illustration
+            project.info.offset = Float(chart.META.offset) / 1000.0
+            store.importProject(project)
+        } else {
+            let project = try ChartProject.importArchive(data)
+            store.importProject(project)
+        }
+    }
+
+    private func importFromInbox(_ url: URL) {
+        do {
+            let (data, name) = try ImportHelper.readSecurely(from: url)
+            try importData(data, named: name)
+            showInboxList = false
+        } catch {
+            importError = error.localizedDescription
+            showingError = true
+        }
+    }
+
+    // MARK: - 导入帮助
+
+    private var importHelpSheet: some View {
+        NavigationStack {
+            List {
+                Section("方式一：App 内导入") {
+                    Text("点主页右上角的下载图标，在系统文件选择器里找到 .zip 谱面包。如果文件是灰的选不了，换方式二。")
+                        .font(.subheadline)
+                }
+                Section("方式二：文件共享（自签名推荐）") {
+                    Text("1. 打开「文件」App → 浏览 → 我的 iPhone/iPad\n2. 找到「Phira 谱面工坊」文件夹\n3. 把 .zip 谱面包复制进去\n4. 回到本 App，点下方「扫描文件共享目录」")
+                        .font(.subheadline)
+                }
+                Section("方式三：从「文件」App 分享") {
+                    Text("在「文件」App 里长按 .zip → 分享 → 选 Phira 谱面工坊。分享进来的文件会出现在下方列表。")
+                        .font(.subheadline)
+                }
+                Section {
+                    Button {
+                        showImportHelp = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showInboxList = true
+                        }
+                    } label: {
+                        Label("扫描文件共享 / 分享进来的文件", systemImage: "folder.badge.gearshape")
+                    }
+                }
+            }
+            .navigationTitle("怎么导入文件")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showImportHelp = false }
+                }
+            }
+        }
+    }
+
+    private var inboxSheet: some View {
+        NavigationStack {
+            Group {
+                let docs = ImportHelper.importableFilesInDocuments()
+                let inbox = ImportHelper.inboxFiles()
+                if docs.isEmpty && inbox.isEmpty {
+                    ContentUnavailableView(
+                        "没有找到文件",
+                        systemImage: "folder",
+                        description: Text("把 .zip 谱面包放进「文件」App 里本 App 的文件夹，再回来扫描。")
+                    )
+                } else {
+                    List {
+                        if !inbox.isEmpty {
+                            Section("从「文件」App 分享进来的") {
+                                ForEach(inbox, id: \.url) { item in
+                                    Button {
+                                        importFromInbox(item.url)
+                                    } label: {
+                                        Label(item.name, systemImage: "doc.zipper")
+                                    }
+                                }
+                            }
+                        }
+                        if !docs.isEmpty {
+                            Section("文件共享目录") {
+                                ForEach(docs, id: \.url) { item in
+                                    Button {
+                                        importFromInbox(item.url)
+                                    } label: {
+                                        HStack {
+                                            Label(item.name, systemImage: "doc")
+                                            Spacer()
+                                            Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("可导入的文件")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showInboxList = false }
+                }
+            }
         }
     }
 }

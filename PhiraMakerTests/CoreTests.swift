@@ -564,6 +564,35 @@ final class SimpleModeTests: XCTestCase {
     }
 }
 
+final class ImportHelperTests: XCTestCase {
+
+    func testReadSecurelyFromPlainFile() throws {
+        // 普通文件路径（无 security scope）也能读
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("phira-import-test-\(UUID().uuidString).zip")
+        let payload = Data("fake zip data".utf8)
+        try payload.write(to: temp)
+
+        let (data, name) = try ImportHelper.readSecurely(from: temp)
+        XCTAssertEqual(data, payload)
+        XCTAssertTrue(name.hasSuffix(".zip"))
+
+        try? FileManager.default.removeItem(at: temp)
+    }
+
+    func testSupportedExtensions() {
+        XCTAssertTrue(ImportHelper.isSupported("chart.zip"))
+        XCTAssertTrue(ImportHelper.isSupported("chart.json"))
+        XCTAssertTrue(ImportHelper.isSupported("chart.pec"))
+        XCTAssertFalse(ImportHelper.isSupported("song.mp3"))
+        XCTAssertFalse(ImportHelper.isSupported("readme.txt"))
+    }
+
+    func testDocumentsDirectoryExists() {
+        XCTAssertNotNil(ImportHelper.documentsDirectory())
+    }
+}
+
 final class ValidatorTests: XCTestCase {
 
     func testValidPackagePassesValidation() throws {

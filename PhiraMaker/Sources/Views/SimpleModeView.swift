@@ -552,10 +552,8 @@ struct SimpleModeView: View {
         defer { importing = nil }
         do {
             guard let url = try result.get().first else { return }
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
-            let ext = url.pathExtension.lowercased()
+            let (data, originalName) = try ImportHelper.readSecurely(from: url)
+            let ext = (originalName as NSString).pathExtension.lowercased()
             let fileName: String
             switch kind {
             case .music: fileName = "song.\(ext.isEmpty ? "mp3" : ext)"
@@ -566,7 +564,7 @@ struct SimpleModeView: View {
             project.assets.append(ChartAsset(kind: kind,
                                              fileName: fileName,
                                              data: data,
-                                             originalName: url.lastPathComponent))
+                                             originalName: originalName))
             switch kind {
             case .music: project.info.music = fileName
             case .illustration: project.info.illustration = fileName
