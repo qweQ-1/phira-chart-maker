@@ -487,6 +487,83 @@ final class ChartPackageTests: XCTestCase {
     }
 }
 
+final class SimpleModeTests: XCTestCase {
+
+    func testDemoNotesUseFourTracks() {
+        let notes = SimpleGenerator.demoNotes(bars: 2)
+        XCTAssertEqual(notes.count, 8, "每小节 4 个音符")
+        let xs = Set(notes.map { Int($0.positionX) })
+        XCTAssertEqual(xs, Set(SimpleGenerator.trackX.map(Int.init)), "示例要覆盖四条轨道")
+        XCTAssertTrue(notes.contains { $0.type == .hold })
+        XCTAssertTrue(notes.contains { $0.type == .flick })
+        XCTAssertTrue(notes.contains { $0.type == .tap })
+    }
+
+    func testDemoHoldHasLongerEnd() {
+        let notes = SimpleGenerator.demoNotes(bars: 1)
+        guard let hold = notes.first(where: { $0.type == .hold }) else {
+            return XCTFail("没有 Hold 音符")
+        }
+        XCTAssertGreaterThan(hold.endTime.value, hold.startTime.value)
+    }
+
+    func testApplyDemoKeepsMetadata() {
+        var project = ChartProject()
+        project.info.name = "我的曲子"
+        project.info.charter = "小明"
+        SimpleGenerator.applyDemo(to: &project, bars: 2)
+        XCTAssertEqual(project.info.name, "我的曲子")
+        XCTAssertEqual(project.info.charter, "小明")
+        XCTAssertEqual(project.chart.judgeLineList[0].notes.count, 8)
+    }
+
+    func testSetBPM() {
+        var project = ChartProject()
+        SimpleGenerator.setBPM(180, in: &project)
+        XCTAssertEqual(project.chart.BPMList.count, 1)
+        XCTAssertEqual(project.chart.BPMList[0].bpm, 180)
+        // 非法 BPM 兜底
+        SimpleGenerator.setBPM(-5, in: &project)
+        XCTAssertEqual(project.chart.BPMList[0].bpm, 120)
+    }
+
+    func testDifficultySyncsMeta() {
+        var project = ChartProject()
+        SimpleGenerator.applyDifficulty(3, to: &project) // EX
+        XCTAssertEqual(project.info.level, "EX Lv.17")
+        XCTAssertEqual(project.chart.META.level, "EX Lv.17")
+        XCTAssertEqual(project.info.difficulty, 17)
+    }
+
+    /// 新手模式产物必须也能被 Phira 正常导入
+    func testSimpleChartExportsValidPackage() throws {
+        var project = ChartProject()
+        project.info.name = "新手谱面"
+        SimpleGenerator.setBPM(128, in: &project)
+        SimpleGenerator.applyDifficulty(2, to: &project)
+        SimpleGenerator.applyDemo(to: &project, bars: 4)
+
+        let archive = try project.exportArchive()
+        let report = Validator.validate(archive: archive)
+        XCTAssertFalse(report.joined(separator: "\n").contains("❌"),
+                       "新手模式导出的包必须自检通过：\(report.joined(separator: "\n"))")
+
+        let restored = try ChartProject.importArchive(archive)
+        XCTAssertEqual(restored.info.name, "新手谱面")
+        XCTAssertEqual(restored.chart.BPMList[0].bpm, 128)
+        XCTAssertEqual(restored.chart.judgeLineList[0].notes.count, 16)
+    }
+
+    func testSlotAndTrackRoundTrip() {
+        let note = Note(type: .tap, startTime: Beat(value: 7), positionX: SimpleGenerator.trackX[2])
+        guard let result = SimpleGenerator.slotAndTrack(for: note) else {
+            return XCTFail("找不到轨道")
+        }
+        XCTAssertEqual(result.slot, 7)
+        XCTAssertEqual(result.track, 2)
+    }
+}
+
 final class ValidatorTests: XCTestCase {
 
     func testValidPackagePassesValidation() throws {

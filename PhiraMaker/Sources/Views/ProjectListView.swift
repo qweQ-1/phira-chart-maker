@@ -6,6 +6,9 @@ struct ProjectListView: View {
     @State private var showingImporter = false
     @State private var importError: String?
     @State private var showingError = false
+    @State private var showSimpleMode = false
+    @AppStorage("phira.showedModeTip") private var showedModeTip = false
+    @State private var showModeTip = false
 
     var body: some View {
         NavigationStack {
@@ -30,18 +33,40 @@ struct ProjectListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showingImporter = true
+                        showSimpleMode = true
                     } label: {
-                        Label("导入", systemImage: "square.and.arrow.down")
+                        Label("新手", systemImage: "wand.and.stars")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        store.addNew()
-                    } label: {
-                        Label("新建", systemImage: "plus")
+                    HStack {
+                        Button {
+                            showingImporter = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                        Button {
+                            store.addNew()
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
+            }
+            .sheet(isPresented: $showSimpleMode) {
+                SimpleModeView()
+                    .environmentObject(store)
+            }
+            .onAppear {
+                if !showedModeTip {
+                    showModeTip = true
+                    showedModeTip = true
+                }
+            }
+            .alert("两种模式", isPresented: $showModeTip) {
+                Button("知道了") {}
+            } message: {
+                Text("第一次用？点左上角「新手」，4 步就能做出能导入 Phira 的谱面包。熟悉后可回主页用「+」进高级编辑器。")
             }
             .fileImporter(isPresented: $showingImporter,
                           allowedContentTypes: [.zip, .json, .item],
@@ -63,26 +88,36 @@ struct ProjectListView: View {
                 .foregroundStyle(.tint)
             Text("还没有谱面")
                 .font(.title2.bold())
-            Text("点右上角新建一个谱面，\n或从 Phira 导入现成的谱面包。")
+            Text("第一次做谱？用「新手模式」4 步搞定。\n熟悉后可用高级编辑器做更精细的谱面。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            HStack(spacing: 12) {
+            VStack(spacing: 12) {
                 Button {
-                    store.addNew()
+                    showSimpleMode = true
                 } label: {
-                    Label("新建谱面", systemImage: "plus.circle.fill")
+                    Label("新手模式（推荐）", systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button {
-                    showingImporter = true
-                } label: {
-                    Label("导入谱面包", systemImage: "square.and.arrow.down")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 12) {
+                    Button {
+                        store.addNew()
+                    } label: {
+                        Label("高级新建", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        showingImporter = true
+                    } label: {
+                        Label("导入", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
             }
             .padding(.horizontal, 32)
         }
