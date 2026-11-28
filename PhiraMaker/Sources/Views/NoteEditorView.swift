@@ -106,7 +106,6 @@ struct NoteEditorView: View {
     private var gridArea: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let height = geo.size.height
             let contentBeats = max(16.0, (notes.last.map { $0.startTime.value + 16 } ?? 32))
             let contentHeight = CGFloat(contentBeats) * pixelsPerBeat
 
@@ -258,7 +257,7 @@ struct NoteEditorView: View {
         // 否则新建
         let beat = BeatMath.snap(Double(point.y / pixelsPerBeat), division: division)
         let xValue = Double((point.x - width / 2) / (width / 2)) * 675.0
-        var newNote = Note(type: noteTypeToAdd,
+        let newNote = Note(type: noteTypeToAdd,
                            startTime: Beat(value: beat),
                            endTime: Beat(value: beat + (noteTypeToAdd == .hold ? 1 : 0)),
                            positionX: max(-675, min(675, xValue)))

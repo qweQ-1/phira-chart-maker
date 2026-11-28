@@ -154,9 +154,10 @@ struct ChartProject: Codable {
             var kind: ChartAsset.Kind? = nil
             if name == musicName { kind = .music }
             else if name == illuName { kind = .illustration }
-            else if let ext = (name as NSString).pathExtension.lowercased() {
+            else {
+                let ext = (name as NSString).pathExtension.lowercased()
                 if ["mp3", "ogg", "wav", "flac", "aac"].contains(ext) { kind = .music }
-                else if ["png", "jpg", "jpeg", "bmp", "gif", "webp", "avif"].contains(ext) { kind = .illustration }
+                else if ["png", "jpg", "jpeg", "webp", "avif"].contains(ext) { kind = .illustration }
             }
             if let k = kind {
                 assets.append(ChartAsset(kind: k, fileName: name, data: d, originalName: name))
