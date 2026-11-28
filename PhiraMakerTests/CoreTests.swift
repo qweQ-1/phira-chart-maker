@@ -135,7 +135,6 @@ final class YamlTests: XCTestCase {
         let parsed = InfoYAML.parse(text)
         XCTAssertEqual(parsed.name, "12345")
         XCTAssertEqual(parsed.charter, "0")
-        XCTAssertTrue(parsed.name is String)
     }
 
     func testBoolNotQuoted() {
