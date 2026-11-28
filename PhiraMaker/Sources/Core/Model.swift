@@ -18,6 +18,14 @@ struct Beat: Codable, Hashable {
         self.d = d == 0 ? 1 : d
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        i = try c.decodeIfPresent(Int.self, forKey: .i) ?? 0
+        n = try c.decodeIfPresent(Int.self, forKey: .n) ?? 0
+        d = try c.decodeIfPresent(Int.self, forKey: .d) ?? 1
+        if d == 0 { d = 1 }
+    }
+
     /// 拍数值
     var value: Double {
         Double(i) + Double(n) / Double(d)
@@ -70,6 +78,12 @@ struct BPMEvent: Codable, Hashable {
         self.startTime = startTime
         self.bpm = bpm
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startTime = try c.decodeIfPresent(Beat.self, forKey: .startTime) ?? Beat(i: 0)
+        bpm = try c.decodeIfPresent(Double.self, forKey: .bpm) ?? 120
+    }
 }
 
 // MARK: - 音符
@@ -120,6 +134,25 @@ struct Note: Codable, Hashable, Identifiable {
     var judgeArea: Double? = nil
 
     init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        type = try c.decodeIfPresent(NoteType.self, forKey: .type) ?? .tap
+        startTime = try c.decodeIfPresent(Beat.self, forKey: .startTime) ?? Beat(i: 0)
+        endTime = try c.decodeIfPresent(Beat.self, forKey: .endTime) ?? startTime
+        positionX = try c.decodeIfPresent(Double.self, forKey: .positionX) ?? 0
+        size = try c.decodeIfPresent(Double.self, forKey: .size) ?? 1
+        speed = try c.decodeIfPresent(Double.self, forKey: .speed) ?? 1
+        yOffset = try c.decodeIfPresent(Double.self, forKey: .yOffset) ?? 0
+        above = try c.decodeIfPresent(Int.self, forKey: .above) ?? 1
+        alpha = try c.decodeIfPresent(Int.self, forKey: .alpha) ?? 255
+        isFake = try c.decodeIfPresent(Int.self, forKey: .isFake) ?? 0
+        visibleTime = try c.decodeIfPresent(Double.self, forKey: .visibleTime) ?? 999999
+        tint = try c.decodeIfPresent([Int].self, forKey: .tint)
+        tintHitEffects = try c.decodeIfPresent([Int].self, forKey: .tintHitEffects)
+        judgeArea = try c.decodeIfPresent(Double.self, forKey: .judgeArea)
+    }
 
     init(type: NoteType, startTime: Beat, endTime: Beat? = nil, positionX: Double = 0) {
         self.type = type
@@ -221,6 +254,18 @@ struct LineEvent: Codable, Hashable {
         self.end = end
         self.easingType = easingType
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startTime = try c.decodeIfPresent(Beat.self, forKey: .startTime) ?? Beat(i: 0)
+        endTime = try c.decodeIfPresent(Beat.self, forKey: .endTime) ?? startTime
+        start = try c.decodeIfPresent(Double.self, forKey: .start) ?? 0
+        end = try c.decodeIfPresent(Double.self, forKey: .end) ?? 0
+        easingType = try c.decodeIfPresent(Int.self, forKey: .easingType) ?? 1
+        easingLeft = try c.decodeIfPresent(Double.self, forKey: .easingLeft) ?? 0
+        easingRight = try c.decodeIfPresent(Double.self, forKey: .easingRight) ?? 1
+        linkgroup = try c.decodeIfPresent(Int.self, forKey: .linkgroup) ?? 0
+    }
 }
 
 /// 颜色事件
@@ -233,6 +278,25 @@ struct ColorEvent: Codable, Hashable {
     var easingLeft: Double = 0
     var easingRight: Double = 1
     var linkgroup: Int = 0
+
+    init(startTime: Beat, endTime: Beat, start: [Int], end: [Int]) {
+        self.startTime = startTime
+        self.endTime = endTime
+        self.start = start
+        self.end = end
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startTime = try c.decodeIfPresent(Beat.self, forKey: .startTime) ?? Beat(i: 0)
+        endTime = try c.decodeIfPresent(Beat.self, forKey: .endTime) ?? startTime
+        start = try c.decodeIfPresent([Int].self, forKey: .start) ?? [255, 255, 255]
+        end = try c.decodeIfPresent([Int].self, forKey: .end) ?? [255, 255, 255]
+        easingType = try c.decodeIfPresent(Int.self, forKey: .easingType) ?? 1
+        easingLeft = try c.decodeIfPresent(Double.self, forKey: .easingLeft) ?? 0
+        easingRight = try c.decodeIfPresent(Double.self, forKey: .easingRight) ?? 1
+        linkgroup = try c.decodeIfPresent(Int.self, forKey: .linkgroup) ?? 0
+    }
 }
 
 /// 文本事件
@@ -245,6 +309,25 @@ struct TextEvent: Codable, Hashable {
     var easingLeft: Double = 0
     var easingRight: Double = 1
     var linkgroup: Int = 0
+
+    init(startTime: Beat, endTime: Beat, start: String, end: String) {
+        self.startTime = startTime
+        self.endTime = endTime
+        self.start = start
+        self.end = end
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startTime = try c.decodeIfPresent(Beat.self, forKey: .startTime) ?? Beat(i: 0)
+        endTime = try c.decodeIfPresent(Beat.self, forKey: .endTime) ?? startTime
+        start = try c.decodeIfPresent(String.self, forKey: .start) ?? ""
+        end = try c.decodeIfPresent(String.self, forKey: .end) ?? ""
+        easingType = try c.decodeIfPresent(Int.self, forKey: .easingType) ?? 1
+        easingLeft = try c.decodeIfPresent(Double.self, forKey: .easingLeft) ?? 0
+        easingRight = try c.decodeIfPresent(Double.self, forKey: .easingRight) ?? 1
+        linkgroup = try c.decodeIfPresent(Int.self, forKey: .linkgroup) ?? 0
+    }
 }
 
 /// 事件层级
@@ -256,6 +339,15 @@ struct EventLayer: Codable, Hashable {
     var alphaEvents: [LineEvent] = []
 
     init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        speedEvents = try c.decodeIfPresent([LineEvent].self, forKey: .speedEvents) ?? []
+        moveXEvents = try c.decodeIfPresent([LineEvent].self, forKey: .moveXEvents) ?? []
+        moveYEvents = try c.decodeIfPresent([LineEvent].self, forKey: .moveYEvents) ?? []
+        rotateEvents = try c.decodeIfPresent([LineEvent].self, forKey: .rotateEvents) ?? []
+        alphaEvents = try c.decodeIfPresent([LineEvent].self, forKey: .alphaEvents) ?? []
+    }
 }
 
 /// 扩展（故事板）事件
@@ -264,6 +356,16 @@ struct ExtendedEvents: Codable, Hashable {
     var scaleXEvents: [LineEvent] = []
     var scaleYEvents: [LineEvent] = []
     var textEvents: [TextEvent] = []
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        colorEvents = try c.decodeIfPresent([ColorEvent].self, forKey: .colorEvents) ?? []
+        scaleXEvents = try c.decodeIfPresent([LineEvent].self, forKey: .scaleXEvents) ?? []
+        scaleYEvents = try c.decodeIfPresent([LineEvent].self, forKey: .scaleYEvents) ?? []
+        textEvents = try c.decodeIfPresent([TextEvent].self, forKey: .textEvents) ?? []
+    }
 }
 
 // MARK: - 判定线
@@ -284,6 +386,21 @@ struct JudgeLine: Codable, Hashable, Identifiable {
     init(name: String = "Untitled") {
         self.name = name
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
+        texture = try c.decodeIfPresent(String.self, forKey: .texture) ?? "line.png"
+        father = try c.decodeIfPresent(Int.self, forKey: .father) ?? -1
+        isCover = try c.decodeIfPresent(Int.self, forKey: .isCover) ?? 1
+        zOrder = try c.decodeIfPresent(Int.self, forKey: .zOrder) ?? 0
+        bpmfactor = try c.decodeIfPresent(Double.self, forKey: .bpmfactor) ?? 1.0
+        rotateWithFather = try c.decodeIfPresent(Bool.self, forKey: .rotateWithFather) ?? true
+        eventLayers = try c.decodeIfPresent([EventLayer].self, forKey: .eventLayers) ?? [EventLayer()]
+        extended = try c.decodeIfPresent(ExtendedEvents.self, forKey: .extended)
+        notes = try c.decodeIfPresent([Note].self, forKey: .notes) ?? []
+    }
 }
 
 // MARK: - 元信息
@@ -299,6 +416,22 @@ struct ChartMeta: Codable, Hashable {
     var song: String = ""
     var background: String = ""
     var offset: Int = 0
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        RPEVersion = try c.decodeIfPresent(Int.self, forKey: .RPEVersion) ?? 160
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
+        level = try c.decodeIfPresent(String.self, forKey: .level) ?? "0"
+        charter = try c.decodeIfPresent(String.self, forKey: .charter) ?? "Unknown"
+        composer = try c.decodeIfPresent(String.self, forKey: .composer) ?? "Unknown"
+        illustration = try c.decodeIfPresent(String.self, forKey: .illustration) ?? ""
+        song = try c.decodeIfPresent(String.self, forKey: .song) ?? ""
+        background = try c.decodeIfPresent(String.self, forKey: .background) ?? ""
+        offset = try c.decodeIfPresent(Int.self, forKey: .offset) ?? 0
+    }
 }
 
 enum ChartFormat: String, Codable, CaseIterable, Identifiable {
@@ -328,5 +461,14 @@ struct RPEChart: Codable {
         self.META = meta
         self.BPMList = bpmList
         self.judgeLineList = judgeLineList
+    }
+
+    /// 解码时容忍缺字段（旧存档 / 外部导入）
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        META = try c.decodeIfPresent(ChartMeta.self, forKey: .META) ?? ChartMeta()
+        BPMList = try c.decodeIfPresent([BPMEvent].self, forKey: .BPMList)
+            ?? [BPMEvent(startTime: Beat(i: 0), bpm: 120)]
+        judgeLineList = try c.decodeIfPresent([JudgeLine].self, forKey: .judgeLineList) ?? []
     }
 }
