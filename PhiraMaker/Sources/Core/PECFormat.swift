@@ -160,7 +160,7 @@ enum PECFormat {
                     fake = parts.count > 5 ? (Int(parts[5]) ?? 0) : 0
                 }
                 let (ex, _) = toEditor(fx, 0)
-                let note = Note(type: type,
+                var note = Note(type: type,
                                 startTime: Beat(value: beat),
                                 endTime: Beat(value: endBeat),
                                 positionX: ex)
@@ -171,14 +171,14 @@ enum PECFormat {
                 while index < lines.count {
                     let nxt = lines[index].trimmed
                     if nxt.hasPrefix("#") {
-                        let v = Double(nxt.dropFirst().trimmed)
-                        if let v = v { note.speed = v }
+                        let valueText = String(nxt.dropFirst()).trimmed
+                        if let v = Double(valueText) { note.speed = v }
                         index += 1
                         continue
                     }
                     if nxt.hasPrefix("&") {
-                        let v = Double(nxt.dropFirst().trimmed)
-                        if let v = v { note.size = v }
+                        let valueText = String(nxt.dropFirst()).trimmed
+                        if let v = Double(valueText) { note.size = v }
                         index += 1
                         continue
                     }
