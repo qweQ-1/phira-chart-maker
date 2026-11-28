@@ -11,6 +11,7 @@ struct ProjectListView: View {
     @State private var showModeTip = false
     @State private var showImportHelp = false
     @State private var showInboxList = false
+    @State private var refreshInbox = UUID()
 
     var body: some View {
         NavigationStack {
@@ -48,7 +49,9 @@ struct ProjectListView: View {
                             Image(systemName: "questionmark.circle")
                         }
                         Button {
-                            showingImporter = true
+                            // 自签名 App（尤其 Gbox）里系统文件选择器常无响应，
+                            // 默认走 App 内文件浏览器扫 Documents / Inbox
+                            showInboxList = true
                         } label: {
                             Image(systemName: "square.and.arrow.down")
                         }
@@ -80,6 +83,11 @@ struct ProjectListView: View {
                           allowedContentTypes: [.item],
                           allowsMultipleSelection: false) { result in
                 handleImport(result)
+            }
+            .onOpenURL { url in
+                // Gbox / 文件 App 通过「打开方式」传进来的 file:// URL
+                guard url.isFileURL else { return }
+                importFromInbox(url)
             }
             .sheet(isPresented: $showImportHelp) {
                 importHelpSheet
@@ -125,7 +133,7 @@ struct ProjectListView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        showingImporter = true
+                        showInboxList = true
                     } label: {
                         Label("导入", systemImage: "square.and.arrow.down")
                             .frame(maxWidth: .infinity)
@@ -258,49 +266,79 @@ struct ProjectListView: View {
 
     private var inboxSheet: some View {
         NavigationStack {
-            Group {
-                let docs = ImportHelper.importableFilesInDocuments()
-                let inbox = ImportHelper.inboxFiles()
-                if docs.isEmpty && inbox.isEmpty {
-                    ContentUnavailableView(
-                        "没有找到文件",
-                        systemImage: "folder",
-                        description: Text("把 .zip 谱面包放进「文件」App 里本 App 的文件夹，再回来扫描。")
-                    )
-                } else {
-                    List {
-                        if !inbox.isEmpty {
-                            Section("从「文件」App 分享进来的") {
-                                ForEach(inbox, id: \.url) { item in
-                                    Button {
-                                        importFromInbox(item.url)
-                                    } label: {
-                                        Label(item.name, systemImage: "doc.zipper")
-                                    }
-                                }
+            List {
+                Section {
+                    Button {
+                        showingImporter = true
+                    } label: {
+                        Label("用系统文件选择器选文件", systemImage: "folder")
+                    }
+                    Button {
+                        refreshInbox = UUID()
+                    } label: {
+                        Label("重新扫描", systemImage: "arrow.clockwise")
+                    }
+                } header: {
+                    Text("导入方式")
+                } footer: {
+                    Text("Gbox 等自签环境里系统文件选择器可能没反应。推荐把 .zip 谱面包放进下面这个文件夹，再回来点文件即可导入。")
+                }
+
+                Section {
+                    if let dir = ImportHelper.documentsDirectory() {
+                        HStack {
+                            Text(dir.path).font(.system(size: 10)).foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                UIPasteboard.general.string = dir.path
+                            } label: {
+                                Image(systemName: "doc.on.doc")
                             }
                         }
-                        if !docs.isEmpty {
-                            Section("文件共享目录") {
-                                ForEach(docs, id: \.url) { item in
-                                    Button {
-                                        importFromInbox(item.url)
-                                    } label: {
-                                        HStack {
-                                            Label(item.name, systemImage: "doc")
-                                            Spacer()
-                                            Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
+                    }
+                    Text("在「文件」App → 我的 iPhone → Phira 谱面工坊 里放文件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("文件共享目录")
+                }
+
+                let docs = ImportHelper.importableFilesInDocuments()
+                let inbox = ImportHelper.inboxFiles(refresh: refreshInbox)
+
+                if !inbox.isEmpty {
+                    Section("从「文件」App 分享进来的") {
+                        ForEach(inbox, id: \.url) { item in
+                            Button { importFromInbox(item.url) } label: {
+                                Label(item.name, systemImage: "doc.zipper")
                             }
                         }
                     }
                 }
+
+                if !docs.isEmpty {
+                    Section("文件共享目录里的文件（点一下导入）") {
+                        ForEach(docs, id: \.url) { item in
+                            Button { importFromInbox(item.url) } label: {
+                                HStack {
+                                    Label(item.name, systemImage: "doc")
+                                    Spacer()
+                                    Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } else if inbox.isEmpty {
+                    Section {
+                        Text("还没找到 .zip / .json 文件。放进去后点上面的「重新扫描」。")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
-            .navigationTitle("可导入的文件")
+            .navigationTitle("导入文件")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

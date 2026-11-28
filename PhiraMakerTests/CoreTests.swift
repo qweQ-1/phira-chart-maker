@@ -559,7 +559,7 @@ final class SimpleModeTests: XCTestCase {
         guard let result = SimpleGenerator.slotAndTrack(for: note) else {
             return XCTFail("找不到轨道")
         }
-        XCTAssertEqual(result.slot, 7)
+        XCTAssertEqual(result.slot, 14, "网格每格半拍，7 拍对应第 14 格")
         XCTAssertEqual(result.track, 2)
     }
 }

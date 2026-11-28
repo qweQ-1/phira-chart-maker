@@ -84,7 +84,9 @@ enum ImportHelper {
     }
 
     /// 扫描 Inbox 目录（从「文件」App 分享进来的文件会落在这里）
-    static func inboxFiles() -> [(url: URL, name: String)] {
+    /// refresh 参数用于强制 SwiftUI 重算（目录内容变化不会被自动观测）
+    static func inboxFiles(refresh: UUID = UUID()) -> [(url: URL, name: String)] {
+        _ = refresh
         guard let dir = documentsDirectory() else { return [] }
         let inbox = dir.appendingPathComponent("Inbox", isDirectory: true)
         guard let entries = try? FileManager.default.contentsOfDirectory(
